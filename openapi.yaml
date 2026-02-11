@@ -1,0 +1,208 @@
+openapi: 3.0.0
+info:
+  title: Strava Wrapper API
+  version: 1.0.0
+  description: REST API that integrates with Strava
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+  - url: https://api.example.com/api/v1
+    description: Production server
+
+paths:
+  /athletes/me:
+    get:
+      summary: Get current authenticated athlete
+      description: Retrieves the authenticated user's athlete profile from Strava
+      tags:
+        - Athletes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successful athlete profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Athlete'
+        '401':
+          description: Unauthorized - invalid or missing token
+        '500':
+          description: Server error
+
+  /activities:
+    get:
+      summary: List athlete activities
+      description: Get paginated list of activities for authenticated athlete
+      tags:
+        - Activities
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: List of activities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Activity'
+        '401':
+          description: Unauthorized
+
+  /activities/{id}:
+    get:
+      summary: Get activity details
+      tags:
+        - Activities
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Activity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetail'
+        '404':
+          description: Activity not found
+
+  /auth/login:
+    post:
+      summary: Authenticate with Strava
+      description: Exchange Strava authorization code for access token
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  description: Strava OAuth code
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+        '400':
+          description: Invalid authorization code
+        '500':
+          description: Server error
+
+components:
+  schemas:
+    Athlete:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        firstname:
+          type: string
+        lastname:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          type: string
+        sex:
+          type: string
+          enum: [M, F]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Activity:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+          enum: [Run, Ride, Swim, Walk, Hike]
+        distance:
+          type: number
+          description: Distance in meters
+        moving_time:
+          type: integer
+          description: Moving time in seconds
+        elapsed_time:
+          type: integer
+          description: Total elapsed time in seconds
+        start_date:
+          type: string
+          format: date-time
+        kudos_count:
+          type: integer
+
+    ActivityDetail:
+      allOf:
+        - $ref: '#/components/schemas/Activity'
+        - type: object
+          properties:
+            description:
+              type: string
+            calories:
+              type: number
+            average_speed:
+              type: number
+            max_speed:
+              type: number
+            location_city:
+              type: string
+            gear_id:
+              type: string
+
+    AuthToken:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+        expires_at:
+          type: integer
+          description: Unix timestamp when token expires
+        refresh_token:
+          type: string
+          description: Token to refresh access
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
