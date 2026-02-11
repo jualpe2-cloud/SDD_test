@@ -1,94 +1,24 @@
 openapi: 3.0.0
 info:
-  title: Strava Wrapper API
+  title: Strava Routes Export API
   version: 1.0.0
-  description: REST API that integrates with Strava
+  description: Extract Strava tracks/routes to upload in GPS device
+  contact:
+    name: API Support
+  license:
+    name: MIT
 
 servers:
-  - url: http://localhost:3000/api/v1
+  - url: http://localhost:8000/api/v1
     description: Development server
   - url: https://api.example.com/api/v1
     description: Production server
 
 paths:
-  /athletes/me:
-    get:
-      summary: Get current authenticated athlete
-      description: Retrieves the authenticated user's athlete profile from Strava
-      tags:
-        - Athletes
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Successful athlete profile
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Athlete'
-        '401':
-          description: Unauthorized - invalid or missing token
-        '500':
-          description: Server error
-
-  /activities:
-    get:
-      summary: List athlete activities
-      description: Get paginated list of activities for authenticated athlete
-      tags:
-        - Activities
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: per_page
-          in: query
-          schema:
-            type: integer
-            default: 30
-      responses:
-        '200':
-          description: List of activities
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Activity'
-        '401':
-          description: Unauthorized
-
-  /activities/{id}:
-    get:
-      summary: Get activity details
-      tags:
-        - Activities
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Activity details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ActivityDetail'
-        '404':
-          description: Activity not found
-
   /auth/login:
     post:
       summary: Authenticate with Strava
-      description: Exchange Strava authorization code for access token
+      description: Exchange Strava authorization code for JWT access token (FR3.1)
       tags:
         - Authentication
       requestBody:
@@ -102,7 +32,8 @@ paths:
               properties:
                 code:
                   type: string
-                  description: Strava OAuth code
+                  description: Strava OAuth authorization code
+                  example: "a4b945687g8576h86s"
       responses:
         '200':
           description: Successfully authenticated
@@ -112,97 +43,298 @@ paths:
                 $ref: '#/components/schemas/AuthToken'
         '400':
           description: Invalid authorization code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error during authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /routes:
+    get:
+      summary: List athlete routes
+      description: Get paginated list of all routes created by authenticated athlete (FR1.1)
+      tags:
+        - Routes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number for pagination
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+          description: Items per page
+      responses:
+        '200':
+          description: List of routes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteListResponse'
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+
+  /routes/{id}:
+    get:
+      summary: Get route details
+      description: Retrieve detailed information about a specific route (FR1.2)
+      tags:
+        - Routes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Strava route ID
+          example: 12345
+      responses:
+        '200':
+          description: Route details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteDetail'
+        '401':
+          description: Unauthorized - invalid or missing token
+        '404':
+          description: Route not found
+        '500':
+          description: Server error
+
+  /routes/{id}/gpx:
+    get:
+      summary: Export route as GPX file
+      description: Download route in GPX (GPS Exchange Format) compatible with Garmin, Wahoo, and other GPS devices (FR2.1)
+      tags:
+        - Routes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Strava route ID
+          example: 12345
+      responses:
+        '200':
+          description: GPX file exported successfully
+          content:
+            application/gpx+xml:
+              schema:
+                type: string
+                format: binary
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <gpx version="1.1" creator="Strava Routes Export">
+                  <metadata>
+                    <name>Golden Gate Bridge Loop</name>
+                  </metadata>
+                  <trk>
+                    <trkseg>
+                      <trkpt lat="37.7749" lon="-122.4194">
+                        <ele>10</ele>
+                      </trkpt>
+                    </trkseg>
+                  </trk>
+                </gpx>
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: File download header
+              example: 'attachment; filename="golden-gate-bridge-loop.gpx"'
+            Content-Type:
+              schema:
+                type: string
+              example: 'application/gpx+xml'
+        '401':
+          description: Unauthorized - invalid or missing token
+        '404':
+          description: Route not found
+        '429':
+          description: Strava API rate limit exceeded - retry after specified seconds
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before retry
         '500':
           description: Server error
 
 components:
   schemas:
-    Athlete:
-      type: object
-      properties:
-        id:
-          type: integer
-        username:
-          type: string
-        firstname:
-          type: string
-        lastname:
-          type: string
-        city:
-          type: string
-        state:
-          type: string
-        country:
-          type: string
-        sex:
-          type: string
-          enum: [M, F]
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    Activity:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        type:
-          type: string
-          enum: [Run, Ride, Swim, Walk, Hike]
-        distance:
-          type: number
-          description: Distance in meters
-        moving_time:
-          type: integer
-          description: Moving time in seconds
-        elapsed_time:
-          type: integer
-          description: Total elapsed time in seconds
-        start_date:
-          type: string
-          format: date-time
-        kudos_count:
-          type: integer
-
-    ActivityDetail:
-      allOf:
-        - $ref: '#/components/schemas/Activity'
-        - type: object
-          properties:
-            description:
-              type: string
-            calories:
-              type: number
-            average_speed:
-              type: number
-            max_speed:
-              type: number
-            location_city:
-              type: string
-            gear_id:
-              type: string
-
     AuthToken:
       type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
       properties:
         access_token:
           type: string
+          description: JWT bearer token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         token_type:
           type: string
-        expires_at:
+          description: Token type (always Bearer)
+          example: "Bearer"
+        expires_in:
           type: integer
-          description: Unix timestamp when token expires
+          description: Token expiration in seconds
+          example: 86400
         refresh_token:
           type: string
-          description: Token to refresh access
+          description: Token to refresh the access token
+          example: "refresh_token_here"
+
+    Route:
+      type: object
+      required:
+        - id
+        - name
+        - distance
+        - type
+        - created_at
+      properties:
+        id:
+          type: integer
+          description: Strava route ID
+          example: 12345
+        name:
+          type: string
+          description: Route name
+          example: "Golden Gate Bridge Loop"
+        description:
+          type: string
+          nullable: true
+          description: Route description
+          example: "Scenic route around San Francisco"
+        distance:
+          type: number
+          description: Distance in meters
+          example: 25000
+        elevation_gain:
+          type: number
+          description: Total elevation gain in meters
+          example: 450
+        type:
+          type: string
+          enum: [Run, Ride, Walk]
+          description: Activity type
+          example: "Ride"
+        created_at:
+          type: string
+          format: date-time
+          description: Route creation timestamp
+          example: "2023-10-15T10:30:00Z"
+
+    RouteDetail:
+      allOf:
+        - $ref: '#/components/schemas/Route'
+        - type: object
+          properties:
+            elevation_high:
+              type: number
+              description: Highest elevation point in meters
+              example: 150
+            elevation_low:
+              type: number
+              description: Lowest elevation point in meters
+              example: 0
+            updated_at:
+              type: string
+              format: date-time
+              description: Route last update timestamp
+              example: "2023-10-15T10:30:00Z"
+            polyline_summary:
+              type: string
+              description: Encoded polyline of route coordinates
+              example: "encoded_polyline_string"
+
+    RouteListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Route'
+          description: List of routes
+        pagination:
+          type: object
+          required:
+            - page
+            - per_page
+            - total
+          properties:
+            page:
+              type: integer
+              description: Current page number
+              example: 1
+            per_page:
+              type: integer
+              description: Items per page
+              example: 10
+            total:
+              type: integer
+              description: Total number of routes
+              example: 25
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "unauthorized"
+        message:
+          type: string
+          description: Error message
+          example: "Invalid or missing authentication token"
+        details:
+          type: string
+          description: Additional error details
+          nullable: true
 
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT bearer token from /auth/login endpoint
+
+tags:
+  - name: Authentication
+    description: Strava OAuth2 authentication
+  - name: Routes
+    description: Route retrieval and export operations
