@@ -42,9 +42,24 @@ class StravaService:
     def get_routes(self, access_token: str) -> list:
         """Get a list of routes from Strava API."""
         try:
+            # First, get the athlete ID
             headers = {'Authorization': f'Bearer {access_token}'}
+            athlete_response = requests.get(
+                'https://www.strava.com/api/v3/athlete',
+                headers=headers,
+                verify=False,
+                timeout=10
+            )
+            
+            if athlete_response.status_code != 200:
+                print(f"Failed to get athlete info: {athlete_response.status_code}")
+                return []
+            
+            athlete_id = athlete_response.json().get('id')
+            
+            # Now get the routes for this athlete
             response = requests.get(
-                'https://www.strava.com/api/v3/athletes/routes',
+                f'https://www.strava.com/api/v3/athletes/{athlete_id}/routes',
                 headers=headers,
                 verify=False,
                 timeout=10
@@ -53,6 +68,7 @@ class StravaService:
             if response.status_code == 200:
                 return response.json()
             else:
+                print(f"Failed to get routes: {response.status_code} - {response.text}")
                 return []
                 
         except Exception as e:
