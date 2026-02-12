@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer
 from app.routes import auth, routes
 from app.config import config
 import uvicorn
@@ -11,8 +12,14 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    swagger_ui_parameters={
+        "persistAuthorization": True
+    }
 )
+
+# Security scheme
+security = HTTPBearer()
 
 # Add CORS middleware
 app.add_middleware(

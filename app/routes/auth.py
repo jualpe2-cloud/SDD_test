@@ -40,9 +40,12 @@ async def oauth_login(request: AuthRequest):
         )
     
     except Exception as e:
+        print(f"Authentication error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Authentication failed"
+            detail=f"Authentication failed: {str(e)}"
         )
 
 @router.post("/refresh")

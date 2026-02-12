@@ -1,12 +1,12 @@
 from pydantic import BaseModel
 
 class AuthRequest(BaseModel):
-    username: str
-    password: str
+    code: str
 
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str
+    expires_in: int
 
 class RouteBase(BaseModel):
     name: str
