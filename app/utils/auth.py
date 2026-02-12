@@ -1,7 +1,9 @@
 import jwt
+from datetime import datetime, timedelta
+import os
 
 # Secret key to encode and decode the JWT
-SECRET_KEY = "your_secret_key_here"
+SECRET_KEY = os.getenv('JWT_SECRET', 'your_secret_key_here')
 
 # Function to create a JWT token
 

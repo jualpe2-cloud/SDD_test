@@ -24,3 +24,8 @@ class GPXService:
     @staticmethod
     def get_gpx_filename(route_name):
         return f'{route_name}.gpx'
+    
+    @staticmethod
+    def create_gpx(route_data):
+        """Alias for create_gpx_from_route for convenience"""
+        return GPXService.create_gpx_from_route(route_data)
